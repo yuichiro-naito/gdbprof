@@ -138,18 +138,42 @@ err0:
 	return -1;
 }
 
-int eventloop(gdbproc_t *gp)
+ssize_t
+writen(int fd, char *buf, size_t size)
+{
+	ssize_t rc;
+	size_t n = 0;
+
+	while (n < size) {
+		if ((rc = write(fd, buf + n, size - n)) < 0)
+			if (errno != EINTR && errno != EAGAIN)
+				return -1;
+		if (rc > 0)
+			n += rc;
+	}
+
+	return n;
+}
+
+int
+eventloop(gdbproc_t *gp)
 {
 	int i = 0;
-	int rc, kq;
+	int rc, kq, flag = 0;
 	char *cmd;
 	int status;
 	struct timespec *tm, tm_buf, interval;
-	struct kevent ev[10];
-	char buf[1024];
+	struct kevent ev[5];
+	size_t bufsize = 256*1024;
+	char *buf;
 
-	if ((kq = kqueue()) < 0)
+	if ((buf = malloc(bufsize)) == NULL)
 		return -1;
+
+	if ((kq = kqueue()) < 0) {
+		free(buf);
+		return -1;
+	}
 
 	EV_SET(&ev[i++], gp->pid, EVFILT_PROC, EV_ADD, NOTE_EXIT, 0, 0);
 	EV_SET(&ev[i++], gp->outfd, EVFILT_READ, EV_ADD, 0, 0, 0);
@@ -167,14 +191,11 @@ int eventloop(gdbproc_t *gp)
 	tm = &tm_buf;
 wait:
         while ((rc = kevent(kq, NULL, 0, ev, 1, tm)) < 0)
-		if (errno != EINTR) {
-			ERR("kevent failure (%s)\n", strerror(errno));
+		if (errno != EINTR)
 			return -1;
-		}
 	if (rc == 0) {
 		kill(gp->pid, SIGINT);
-		cmd = "thread apply all bt\nc\n";
-		write(gp->infd, cmd, strlen(cmd));
+		flag = 0;
 		tm = NULL;
 		goto wait;
 	}
@@ -186,10 +207,10 @@ wait:
 	case EVFILT_SIGNAL:
 		kill(gp->pid, SIGINT);
 		cmd = "quit\n";
-		write(gp->infd, cmd, strlen(cmd));
+		writen(gp->infd, cmd, strlen(cmd));
 		break;
 	case EVFILT_READ:
-		rc = read(ev[0].ident, buf, sizeof(buf));
+		rc = read(ev[0].ident, buf, bufsize);
 		if (rc < 0)
 			goto err;
 		if (rc == 0) {
@@ -201,12 +222,28 @@ wait:
 			goto wait;
 		}
 		if (ev[0].ident == gp->outfd)
-			write(1, buf, rc);
+			writen(1, buf, rc);
 		else if (ev[0].ident == gp->errfd)
-			write(2, buf, rc);
+			writen(2, buf, rc);
 		if (strncmp(&buf[rc - 12], "Continuing.\n", 12) == 0) {
 			tm_buf = interval;
 			tm = &tm_buf;
+		} else if (strncmp(&buf[rc - 6], "(gdb) ", 6) == 0) {
+			switch(flag) {
+			case 0:
+				cmd = "thread apply all bt\n";
+				writen(gp->infd, cmd, strlen(cmd));
+				writen(1, cmd, strlen(cmd));
+				flag = 1;
+				break;
+			case 1:
+				cmd = "c\n";
+				writen(gp->infd, cmd, strlen(cmd));
+				writen(1, cmd, strlen(cmd));
+				flag = 0;
+				break;
+			}
+			tm = NULL;
 		}
 		break;
 	}
@@ -215,20 +252,21 @@ wait:
 
 end:
 	close(kq);
+	free(buf);
 	return 0;
 err:
 	close(kq);
+	free(buf);
 	return -1;
 }
 
 int send_initial_command(gdbproc_t *gp)
 {
 	int rc;
-	size_t len;
 	char *cmd, buf[1024];
 
 	while ((rc = read(gp->outfd, buf, sizeof(buf))) > 0) {
-		write(1, buf, rc);
+		writen(1, buf, rc);
 		if (strncmp(&buf[rc - 6], "(gdb) ", 6) == 0)
 			break;
 	}
@@ -236,7 +274,7 @@ int send_initial_command(gdbproc_t *gp)
 	if ((rc = asprintf(&cmd, "target remote :%s\n", gp->port)) < 0)
 		return -1;
 
-	write(gp->infd, cmd, rc);
+	writen(gp->infd, cmd, rc);
 	free(cmd);
 	return 0;
 }
@@ -257,8 +295,6 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
-	printf("gdb = %s\n", gp->gdb);
-
 	while ((ch = getopt(argc, argv, "p:")) != -1) {
 		switch(ch) {
 		case 'p':
@@ -268,9 +304,6 @@ int main(int argc, char *argv[])
 	}
 	gp->argc = argc - optind;
 	gp->argv = argv + optind;
-
-	printf("port = %s\n", gp->port);
-	printf("%d: %s\n", gp->argc, gp->argv[0]);
 
 	if (exec_gdb(gp) < 0) {
 		ERR("%s\n","can not invoke gdb");
