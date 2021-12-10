@@ -47,7 +47,7 @@ int find_gdb(gdbproc_t *gp)
 
 	if (path == NULL)
 		return -1;
-	
+
 	for (p = path; *p != '\0'; p = c + 1) {
 		c = strchr(p, ':');
 		if (c != NULL)
@@ -98,7 +98,7 @@ exec_gdb(gdbproc_t *gp)
 	args[0] = "gdb";
 	for (i = 0; i < gp->argc; i++)
 		args[i + 1] = gp->argv[i];
-	
+
 	if ((pid = fork()) < 0)
 		goto err3;
 
@@ -144,7 +144,7 @@ int eventloop(gdbproc_t *gp)
 	int rc, kq;
 	char *cmd;
 	int status;
-	struct timespec tm;
+	struct timespec *tm, interval;
 	struct kevent ev[10];
 	char buf[1024];
 
@@ -160,11 +160,12 @@ int eventloop(gdbproc_t *gp)
         while (kevent(kq, ev, i, NULL, 0, NULL) < 0)
 		if (errno != EINTR)
 			goto err;
-	
-	tm.tv_sec = 0;
-	tm.tv_nsec = 10000000;
+
+	interval.tv_sec = 0;
+	interval.tv_nsec = 10000000;
+	tm = &interval;
 wait:
-        while ((rc = kevent(kq, NULL, 0, ev, 1, &tm)) < 0)
+        while ((rc = kevent(kq, NULL, 0, ev, 1, tm)) < 0)
 		if (errno != EINTR) {
 			ERR("kevent failure (%s)\n", strerror(errno));
 			return -1;
@@ -173,8 +174,7 @@ wait:
 		kill(gp->pid, SIGINT);
 		cmd = "thread apply all bt\nc\n";
 		write(gp->infd, cmd, strlen(cmd));
-		tm.tv_sec = 1;
-		tm.tv_nsec = 0;
+		tm = NULL;
 		goto wait;
 	}
 
@@ -203,8 +203,8 @@ wait:
 			write(1, buf, rc);
 		else if (ev[0].ident == gp->errfd)
 			write(2, buf, rc);
-		tm.tv_sec = 0;
-		tm.tv_nsec = 10000000;
+		if (strncmp(&buf[rc - 6], "(gdb) ", 6) == 0)
+			tm = &interval;
 		break;
 	}
 
@@ -248,12 +248,12 @@ int main(int argc, char *argv[])
 		ERR("%s\n","can not create struct gdbproc");
 		return 1;
 	}
-		
+
 	if (find_gdb(gp) < 0) {
 		ERR("%s\n","can not find gdb");
 		return 1;
 	}
-		
+
 	printf("gdb = %s\n", gp->gdb);
 
 	while ((ch = getopt(argc, argv, "p:")) != -1) {
