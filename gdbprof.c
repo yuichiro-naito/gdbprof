@@ -203,7 +203,7 @@ wait:
 			write(1, buf, rc);
 		else if (ev[0].ident == gp->errfd)
 			write(2, buf, rc);
-		if (strncmp(&buf[rc - 6], "(gdb) ", 6) == 0)
+		if (strncmp(&buf[rc - 12], "Continuing.\n", 12) == 0)
 			tm = &interval;
 		break;
 	}
