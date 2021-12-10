@@ -144,7 +144,7 @@ int eventloop(gdbproc_t *gp)
 	int rc, kq;
 	char *cmd;
 	int status;
-	struct timespec *tm, interval;
+	struct timespec *tm, tm_buf, interval;
 	struct kevent ev[10];
 	char buf[1024];
 
@@ -163,7 +163,8 @@ int eventloop(gdbproc_t *gp)
 
 	interval.tv_sec = 0;
 	interval.tv_nsec = 10000000;
-	tm = &interval;
+	tm_buf = interval;
+	tm = &tm_buf;
 wait:
         while ((rc = kevent(kq, NULL, 0, ev, 1, tm)) < 0)
 		if (errno != EINTR) {
@@ -203,8 +204,10 @@ wait:
 			write(1, buf, rc);
 		else if (ev[0].ident == gp->errfd)
 			write(2, buf, rc);
-		if (strncmp(&buf[rc - 12], "Continuing.\n", 12) == 0)
-			tm = &interval;
+		if (strncmp(&buf[rc - 12], "Continuing.\n", 12) == 0) {
+			tm_buf = interval;
+			tm = &tm_buf;
+		}
 		break;
 	}
 
