@@ -1,5 +1,5 @@
 SRCS=gdbprof.c
-CLFAGS+=-Wall
+CFLAGS+=-Wall -g
 
 gdbprof: $(SRCS)
 	$(CC) $(CFLAGS) -o $@ $(SRCS)
