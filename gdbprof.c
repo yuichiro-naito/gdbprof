@@ -346,7 +346,8 @@ wait:
 	if (rc == 0) {
 		kill(gp->pid, SIGINT);
 		flag = 0;
-		tm = NULL;
+		tm->tv_sec = 1;
+		tm->tv_nsec = 0;
 		goto wait;
 	}
 
@@ -383,7 +384,8 @@ wait:
 		} else if (check_last_string(buf, "(gdb) ") == 0) {
 			switch(flag) {
 			case 0:
-				if (find_string(buf, "retpoline", rc) != NULL) {
+				if (strncmp(cmd, "thread", 6) == 0 ||
+				    find_string(buf, "retpoline", rc) != NULL) {
 					cmd = "c\n";
 					writen(gp->infd, cmd, strlen(cmd));
 					writen(1, cmd, strlen(cmd));
@@ -404,7 +406,8 @@ wait:
 			default:
 				break;
 			}
-			tm = NULL;
+			tm->tv_sec = 1;
+			tm->tv_nsec = 0;
 		}
 		break;
 	}
