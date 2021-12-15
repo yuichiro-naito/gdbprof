@@ -435,12 +435,18 @@ int send_initial_command(gdbproc_t *gp)
 			break;
 	}
 
-	if ((rc = asprintf(&cmd, "target remote :%s\n", gp->port)) < 0)
+	if ((rc = asprintf(&cmd, "target remote %s\n", gp->port)) < 0)
 		return -1;
 
 	writen(gp->infd, cmd, rc);
 	free(cmd);
 	return 0;
+}
+
+int usage(int argc, char *argv[])
+{
+	ERR("Usage: %s -p <port> <kernel>\n", argv[0]);
+	return 1;
 }
 
 int main(int argc, char *argv[])
@@ -462,12 +468,18 @@ int main(int argc, char *argv[])
 	while ((ch = getopt(argc, argv, "p:")) != -1) {
 		switch(ch) {
 		case 'p':
-			gp->port = optarg;
+			if (strchr(optarg, ':') != NULL)
+				gp->port = strdup(optarg);
+			else
+				asprintf(&gp->port, ":%s", optarg);
 			break;
 		}
 	}
 	gp->argc = argc - optind;
 	gp->argv = argv + optind;
+
+	if (gp->port == NULL || gp->argc == 0 || gp->argv[0] == NULL)
+		return usage(argc, argv);
 
 	if (exec_gdb(gp) < 0) {
 		ERR("%s\n","can not invoke gdb");
