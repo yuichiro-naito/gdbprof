@@ -11,7 +11,7 @@ gdbprof -p <port> <file>
 ```
 
 Where port is a number of port that gdb connects to.
-Where file is a synbole file of the target (kernel).
+Where file is a symbol file of the target (kernel).
 
 ## Requirements
 
