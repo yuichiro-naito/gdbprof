@@ -1,8 +1,9 @@
+#ifndef __FreeBSD__
+#define _GNU_SOURCE
+#endif
 #include <sys/wait.h>
 #ifdef __FreeBSD__
 #include <sys/event.h>
-#else
-#define _GNU_SOURCE
 #endif
 #include <stdio.h>
 #include <stdlib.h>
