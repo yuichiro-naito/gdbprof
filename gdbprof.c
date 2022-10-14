@@ -1,8 +1,11 @@
-#ifndef __FreeBSD__
+#ifdef __linux__
 #define _GNU_SOURCE
 #endif
 #include <sys/wait.h>
-#ifdef __FreeBSD__
+#ifdef __linux__
+#include <sys/signalfd.h>
+#include <sys/epoll.h>
+#else
 #include <sys/event.h>
 #endif
 #include <stdio.h>
@@ -12,7 +15,7 @@
 #include <signal.h>
 #include <errno.h>
 
-#ifndef __FreeBSD__
+#ifdef __linux__
 char *
 strnstr(const char *s, const char *find, size_t slen)
 {
@@ -335,6 +338,13 @@ err0:
 	return -1;
 }
 
+#ifdef __linux__
+int
+eventloop(gdbproc_t *gp)
+{
+	return 0;
+}
+#else
 int
 eventloop(gdbproc_t *gp)
 {
@@ -452,6 +462,8 @@ err:
 	free_streambuf(buf);
 	return -1;
 }
+#endif
+
 
 int send_initial_command(gdbproc_t *gp)
 {
