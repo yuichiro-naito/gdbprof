@@ -375,7 +375,7 @@ eventloop(gdbproc_t *gp)
 			goto err;
 
 	interval.tv_sec = 0;
-	interval.tv_nsec = 10000000;
+	interval.tv_nsec = 9900000;
 	tm_buf = interval;
 	tm = &tm_buf;
 wait:
