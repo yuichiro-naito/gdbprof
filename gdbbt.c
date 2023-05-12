@@ -481,7 +481,7 @@ int send_initial_command(gdbproc_t *gp)
 	}
 
 	/* break at *(rw_enter + 454) */
-	if ((rc = asprintf(&cmd, "break *0xffffffff812bf786\n")) < 0)
+	if ((rc = asprintf(&cmd, "break *(rw_enter + 454)\n")) < 0)
 		return -1;
 
 	writen(gp->infd, cmd, rc);
